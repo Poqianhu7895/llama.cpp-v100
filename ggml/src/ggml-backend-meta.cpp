@@ -4168,9 +4168,9 @@ static void ggml_backend_meta_free(ggml_backend_t backend) {
 static void ggml_backend_meta_set_tensor_async(ggml_backend_t backend, ggml_tensor * tensor, const void * data, size_t offset, size_t size) {
     const size_t n_backends = ggml_backend_meta_n_backends(backend);
     GGML_ASSERT(offset == 0);
-    GGML_ASSERT(ggml_is_contiguous(tensor));
 
     const ggml_backend_meta_split_state split_state = ggml_backend_meta_get_split_state(tensor, /*assume_sync =*/ false);
+    GGML_ASSERT(ggml_is_contiguous(tensor) || split_state.axis == GGML_BACKEND_SPLIT_AXIS_MIRRORED);
 
     // multi-segment and PARTIAL layouts are staged on the host (PARTIAL scales the values into a temporary buffer),
     // and slices at explicit offsets may overlap, so none of them can be spliced as consecutive chunks:
@@ -4221,9 +4221,9 @@ static void ggml_backend_meta_set_tensor_async(ggml_backend_t backend, ggml_tens
 static void ggml_backend_meta_get_tensor_async(ggml_backend_t backend, const ggml_tensor * tensor, void * data, size_t offset, size_t size) {
     const size_t n_backends = ggml_backend_meta_n_backends(backend);
     GGML_ASSERT(offset == 0);
-    GGML_ASSERT(ggml_is_contiguous(tensor));
 
     const ggml_backend_meta_split_state split_state = ggml_backend_meta_get_split_state(tensor, /*assume_sync =*/ false);
+    GGML_ASSERT(ggml_is_contiguous(tensor) || split_state.axis == GGML_BACKEND_SPLIT_AXIS_MIRRORED);
     if (split_state.has_off) {
         // slices with explicit offsets may overlap, so they cannot be spliced into chunks: copy synchronously
         ggml_backend_synchronize(backend);
