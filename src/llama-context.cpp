@@ -1760,7 +1760,13 @@ bool llama_context::enable_layer_inp_sink(const std::vector<uint32_t> & lids) {
     };
     ctx_sink.reset(ggml_init(params));
 
-    ggml_tensor * sink = ggml_new_tensor_2d(ctx_sink.get(), GGML_TYPE_F32, n_embd * (int64_t) lids.size(), cparams.n_batch);
+    // the sink must cover the widest ubatch a reserved graph may write: graph_reserve rounds the
+    // worst-case width up to a multiple of n_seq_max, so a sink sized to n_batch alone overflows
+    // when min(n_ctx, n_ubatch) is not a multiple of n_seq_max (2048 -> 2052 with 6 sequences,
+    // see the build_layer_inp_sink assert). probes and decode reserves are narrower.
+    const int64_t n_sink_cols = std::max<int64_t>(cparams.n_batch,
+            ((int64_t) std::min(cparams.n_ctx, cparams.n_ubatch) + cparams.n_seq_max - 1) / cparams.n_seq_max * cparams.n_seq_max);
+    ggml_tensor * sink = ggml_new_tensor_2d(ctx_sink.get(), GGML_TYPE_F32, n_embd * (int64_t) lids.size(), n_sink_cols);
     ggml_set_name(sink, "embd_layer_inp_sink");
 
     // the main device buffer type (the meta buft with tensor parallelism) keeps one full copy per device
